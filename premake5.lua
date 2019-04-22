@@ -81,12 +81,12 @@ project "braille"
     includedirs "lib/glad/include"
     includedirs "lib/imgui"
 
-    links { "imgui", "glad" }
+    links { "imgui", "glad", "glfw" }
     
     if windows then
         links { "OpenGL32" }
     else
-        links { "GL" }
+        links { "GL", "dl" }
     end
 
     files {
