@@ -44,8 +44,14 @@ project "imgui"
     files {
         "lib/imgui/imgui_draw.cpp",
         "lib/imgui/imgui_widgets.cpp",
-        "lib/imgui/imgui.cpp"
+        "lib/imgui/imgui.cpp",
+        "lib/imgui/examples/imgui_impl_opengl3.cpp",
+        "lib/imgui/examples/imgui_impl_glfw.cpp"
     }
+
+    includedirs { "lib/imgui/", "lib/glad/include" }
+
+    defines { "IMGUI_IMPL_OPENGL_LOADER_GLAD" }
 
     filter "configurations:Debug"
         defines { "DEBUG" }
