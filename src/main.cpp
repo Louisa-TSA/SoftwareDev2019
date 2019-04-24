@@ -1,6 +1,8 @@
 #include <iostream>
 #include <array>
 
+#include "logger.hpp"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -54,12 +56,12 @@ int main(int argc, char* argv[]) {
         ImGui::InputFloat3("Size", braille_size, 8);
 
         if(ImGui::Button("Generate")) {
-            std::cout <<
-            "Generating: " << text_buf.data() <<
-            ", x: " << braille_size[0] <<
-            ", y: " << braille_size[1] <<
-            ", z: " << braille_size[2] <<
-            std::endl;
+            tsa::println(
+                "Generating: ", text_buf.data(),
+                ", x: ", braille_size[0],
+                ", y: ", braille_size[1],
+                ", z: ", braille_size[2]
+            );
         }
         
         ImGui::End();

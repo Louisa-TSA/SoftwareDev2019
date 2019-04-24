@@ -83,9 +83,12 @@ project "glad"
 project "braille"
     kind "ConsoleApp"
 
-    includedirs "src"
-    includedirs "lib/glad/include"
-    includedirs "lib/imgui"
+    includedirs {
+        "src",
+        "lib/glad/include",
+        "lib/imgui",
+        "lib/glm",
+    }
 
     links { "imgui", "glad", "glfw" }
     
