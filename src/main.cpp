@@ -1,14 +1,20 @@
 #include <iostream>
 #include <array>
 
-#include "logger.hpp"
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include <imgui.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
+
+#include <engine/graphics/opengl/buffers/glarray_buffer.hpp>
+#include <engine/graphics/opengl/buffers/glelement_buffer.hpp>
+#include <engine/graphics/opengl/buffers/glvertex_array.hpp>
+
+#include <engine/graphics/opengl/glshader.hpp>
+
+using namespace amalgamation;
 
 int main(int argc, char* argv[]) {
 
@@ -44,6 +50,48 @@ int main(int argc, char* argv[]) {
     std::array<char, 1024> text_buf = {0};
     float braille_size[3] = {  1.f, 1.f, 1.f };
 
+    const char shader_src[] = R"glsl(@V#version 330 core
+layout (location = 0) in vec3 a_pos;
+void main()
+{
+    gl_Position = vec4(a_pos.x, a_pos.y, a_pos.z, 1.0);
+}@F#version 330 core
+out vec4 frag_colour;
+uniform vec4 u_frag_colour = vec4(0.1f, 0.9f, 0.1f, 1.0f);
+void main()
+{
+    frag_colour = u_frag_colour;
+}@)glsl";
+
+    GLShader shader(shader_src);
+    shader.bind();
+    shader.set_uniform("u_frag_colour", 0.1f, 0.9f, 1.f, 1.0f);
+
+    float vertices[] = {
+        -0.5, -0.5, 0.0,
+        -0.5,  0.5, 0.0,
+         0.5,  0.5, 0.0,
+         0.5, -0.5, 0.0
+    };
+
+    uint32_t indices[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    GLVertexArray vao;
+    vao.create();
+    vao.bind();
+
+    GLArrayBuffer vbo(vertices, sizeof(vertices));
+    vbo.bind();
+    vbo.get_layout().push<float>(3);
+
+    GLElementBuffer ebo(indices, sizeof(indices) / sizeof(uint32_t));
+    ebo.bind();
+
+    vao.set_buffer(vbo);
+
     while(!glfwWindowShouldClose(window)) {
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -56,7 +104,7 @@ int main(int argc, char* argv[]) {
         ImGui::InputFloat3("Size", braille_size, 8);
 
         if(ImGui::Button("Generate")) {
-            tsa::println(
+            println(
                 "Generating: ", text_buf.data(),
                 ", x: ", braille_size[0],
                 ", y: ", braille_size[1],
@@ -66,16 +114,22 @@ int main(int argc, char* argv[]) {
         
         ImGui::End();
 
-
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    vao.destroy();
+    vbo.destroy();
+    ebo.destroy();
+
+    shader.destroy();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

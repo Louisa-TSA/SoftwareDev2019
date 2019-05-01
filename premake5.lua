@@ -88,6 +88,7 @@ project "braille"
         "lib/glad/include",
         "lib/imgui",
         "lib/glm",
+        "lib/amalgamation/src",
     }
 
     links { "imgui", "glad", "glfw" }
