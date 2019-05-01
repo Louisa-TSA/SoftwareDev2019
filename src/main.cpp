@@ -1,6 +1,8 @@
 #include <iostream>
 #include <array>
 
+#include <cctype>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -20,16 +22,20 @@
 
 using namespace amalgamation;
 
+std::unordered_map<char, std::vector<glm::vec3>> char_map;
+
+float sensitivity = 10.f;
+
 int width = 1280, height = 720;
 
 float delta = 0;
 
-glm::mat4 model = glm::mat4(1.0f);
-glm::mat4 view = glm::mat4(1.0f);
+glm::mat4 slab_model = glm::mat4(1.0f);
+glm::mat4 view  = glm::mat4(1.0f);
 glm::mat4 projection;
 
 glm::vec3 block_rotation = glm::vec3(0,0,0);
-glm::vec3 block_scale    = glm::vec3(1,1,1);
+glm::vec3 block_scale    = glm::vec3(1, 0.25, 1);
 
 bool can_pan = false;
 
@@ -37,6 +43,33 @@ double old_mousey   = 0.0, old_mousex   = 0.0;
 double delta_mousey = 0.0, delta_mousex = 0.0;
 
 bool just_clicked = false;
+
+class Cube {
+
+public:
+
+    glm::mat4 model    = glm::mat4(1.0f);
+    glm::vec3 rotation = glm::vec3(0,0,0);
+    glm::vec3 scale    = glm::vec3(0,0,0);
+    glm::vec3 position = glm::vec3(0,0,0);
+
+    void prepare(GLShader& shader, GLElementBuffer& ebo) {
+
+        model = glm::mat4(1.f);
+        model = glm::translate(model, position) * glm::mat4_cast(glm::quat(rotation));
+        model = glm::scale(model, scale);
+
+        shader.set_uniform("u_model", model);
+        shader.set_uniform("u_view", view);
+        shader.set_uniform("u_projection", projection);
+
+        GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
+
+    }
+
+};
+
+std::vector<std::vector<Cube>> bumps;
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     view = glm::translate(view, glm::vec3(0, 0, yoffset/2));
@@ -66,13 +99,151 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
     }
 
     if(can_pan) {
-        block_rotation.x += -delta_mousey * delta;
-        block_rotation.y += -delta_mousex * delta;
+        block_rotation.x += -delta_mousey * delta * sensitivity;
+        block_rotation.y += -delta_mousex * delta * sensitivity;
         block_rotation.z = 0;
     }
 }
 
 int main(int argc, char* argv[]) {
+
+    char_map['a'] = {
+        {0, 1, 0}
+    };
+    char_map['b'] = {
+        {0, 1, 0},
+        {0, 0, 0}
+    };
+    char_map['c'] = {
+        {0, 1, 0},
+        {1, 1, 0}
+    };
+    char_map['d'] = {
+        {0, 1, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['e'] = {
+        {0, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['f'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {1, 1, 0}
+    };
+    char_map['g'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['h'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {1, 0, 0}
+    };
+    char_map['i'] = {
+        {0, 0, 0},
+        {1, 1, 0}
+    };
+    char_map['j'] = {
+        {0, 0, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['k'] = {
+        {0, 1, 0},
+        {0, -1, 0}
+    };
+    char_map['l'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {0, -1, 0}
+    };
+    char_map['m'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 1, 0}
+    };
+    char_map['n'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['o'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 0, 0}
+    };
+    char_map['p'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, 1, 0}
+    };
+    char_map['q'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['r'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, 0, 0}
+    };
+    char_map['s'] = {
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, 1, 0}
+    };
+    char_map['t'] = {
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, 1, 0},
+        {1, 0, 0}
+    };
+    char_map['u'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, -1, 0}
+    };
+    char_map['v'] = {
+        {0, 1, 0},
+        {0, 0, 0},
+        {0, -1, 0},
+        {1, -1, 0}
+    };
+    char_map['w'] = {
+        {0, 0, 0},
+        {1, 1, 0},
+        {1, 0, 0},
+        {1, -1, 0}
+    };
+    char_map['x'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 1, 0},
+        {1, -1, 0}
+    };
+    char_map['y'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 1, 0},
+        {1, 0, 0},
+        {1, -1, 0}
+    };
+    char_map['z'] = {
+        {0, 1, 0},
+        {0, -1, 0},
+        {1, 0, 0},
+        {1, -1, 0}
+    };
+
 
     GLFWwindow* window;
 
@@ -107,7 +278,6 @@ int main(int argc, char* argv[]) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::array<char, 1024> text_buf = {0};
-    float braille_size[3] = {  1.f, 1.f, 1.f };
 
     const char shader_src[] = R"glsl(@V#version 330 core
 layout (location = 0) in vec3 a_pos;
@@ -129,18 +299,38 @@ void main()
 
     GLShader shader(shader_src);
     shader.bind();
-    shader.set_uniform("u_frag_colour", 0.1f, 0.9f, 1.f, 1.0f);
+    shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 0.25f, 1.0f);
 
     float vertices[] = {
-        -0.5, -0.5, 0.0,
-        -0.5,  0.5, 0.0,
-         0.5,  0.5, 0.0,
-         0.5, -0.5, 0.0
+        -0.5, -0.5,  0.5,
+        -0.5,  0.5,  0.5,
+         0.5,  0.5,  0.5,
+         0.5, -0.5,  0.5,
+
+        -0.5, -0.5, -0.5,
+        -0.5,  0.5, -0.5,
+         0.5,  0.5, -0.5,
+         0.5, -0.5, -0.5
     };
 
+    // Clockwise
+
     uint32_t indices[] = {
-        0, 1, 2,
-        2, 3, 0
+        0, 1, 2, // Front 
+        2, 3, 0,
+
+        4, 5, 6, // Back
+        6, 7, 4,
+
+        1, 5, 6, // Top
+        6, 2, 1,
+
+        4, 5, 1, // Left
+        1, 0, 4,
+
+        3, 2, 6, // Right
+        6, 7, 3
+
     };
 
     GLVertexArray vao;
@@ -185,11 +375,11 @@ void main()
 
 
 
-        model = glm::mat4(1.f);//glm::rotate(model, (float)delta * glm::radians(50.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::translate(model, glm::vec3(0,0,0)) * glm::mat4_cast(glm::quat(block_rotation));
-        model = glm::scale(model, block_scale);
+        slab_model = glm::mat4(1.f);//glm::rotate(model, (float)delta * glm::radians(50.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        slab_model = glm::translate(slab_model, glm::vec3(0,0,0)) * glm::mat4_cast(glm::quat(block_rotation));
+        slab_model = glm::scale(slab_model, block_scale);
 
-        shader.set_uniform("u_model", model);
+        shader.set_uniform("u_model", slab_model);
         shader.set_uniform("u_view", view);
         shader.set_uniform("u_projection", projection);
 
@@ -206,14 +396,22 @@ void main()
 
         ImGui::Begin("Braille");
         ImGui::InputText("Text", text_buf.data(), 1024);
-        ImGui::InputFloat3("Size", braille_size, 8);
+        ImGui::InputFloat3("Size", &block_scale[0], 8);
 
         if(ImGui::Button("Generate")) {
+            for(size_t i = 0; i < text_buf.size(); i++) {
+                text_buf[i] = std::tolower(text_buf[i]);
+                bumps.emplace_back();
+                for(size_t j = 0; j < char_map[text_buf[i]].size(); j++) {
+                    bumps[i].emplace_back();
+                    // bumps[i][j].position = 
+                }
+            }
             println(
                 "Generating: ", text_buf.data(),
-                ", x: ", braille_size[0],
-                ", y: ", braille_size[1],
-                ", z: ", braille_size[2]
+                ", x: ", block_scale[0],
+                ", y: ", block_scale[1],
+                ", z: ", block_scale[2]
             );
         }
 
