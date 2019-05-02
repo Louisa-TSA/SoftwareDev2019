@@ -22,9 +22,64 @@
 
 using namespace amalgamation;
 
+float vertices[] = {
+    -0.5, -0.5,  0.5,
+    -0.5,  0.5,  0.5,
+     0.5,  0.5,  0.5,
+     0.5, -0.5,  0.5,
+
+    -0.5, -0.5, -0.5,
+    -0.5,  0.5, -0.5,
+     0.5,  0.5, -0.5,
+     0.5, -0.5, -0.5
+};
+
+// Clockwise
+
+uint32_t indices[] = {
+    0, 1, 2, // Front 
+    2, 3, 0,
+
+    4, 5, 6, // Back
+    6, 7, 4,
+
+    1, 5, 6, // Top
+    6, 2, 1,
+
+    4, 5, 1, // Left
+    1, 0, 4,
+
+    3, 2, 6, // Right
+    6, 7, 3,
+
+    0, 4, 7, // Bottom
+    7, 3, 0
+
+};
+
+const char shader_src[] = R"glsl(@V#version 330 core
+layout (location = 0) in vec3 a_pos;
+
+uniform mat4 u_view;
+uniform mat4 u_projection;
+uniform mat4 u_model;
+
+void main()
+{
+    gl_Position =  u_projection * u_view * u_model * vec4(a_pos.x, a_pos.y, a_pos.z, 1.0);
+}@F#version 330 core
+out vec4 frag_colour;
+uniform vec4 u_frag_colour = vec4(0.1f, 0.9f, 0.1f, 1.0f);
+void main()
+{
+    frag_colour = u_frag_colour;
+}@)glsl";
+
 std::unordered_map<char, std::vector<glm::vec3>> char_map;
 
-float sensitivity = 10.f;
+float char_size = 1.f;
+
+float sensitivity = 1.f;
 
 int width = 1280, height = 720;
 
@@ -35,7 +90,7 @@ glm::mat4 view  = glm::mat4(1.0f);
 glm::mat4 projection;
 
 glm::vec3 block_rotation = glm::vec3(0,0,0);
-glm::vec3 block_scale    = glm::vec3(1, 0.25, 1);
+glm::vec3 block_scale    = glm::vec3(1, 1.5, 0.25);
 
 bool can_pan = false;
 
@@ -44,24 +99,28 @@ double delta_mousey = 0.0, delta_mousex = 0.0;
 
 bool just_clicked = false;
 
+glm::mat4 relative_plane = glm::mat4(1.f);
+
 class Cube {
 
 public:
 
     glm::mat4 model    = glm::mat4(1.0f);
     glm::vec3 rotation = glm::vec3(0,0,0);
-    glm::vec3 scale    = glm::vec3(0,0,0);
+    glm::vec3 scale    = glm::vec3(0.25,0.25,0.25);
     glm::vec3 position = glm::vec3(0,0,0);
 
-    void prepare(GLShader& shader, GLElementBuffer& ebo) {
+    void draw(GLShader& shader, GLElementBuffer& ebo, const glm::vec3& offset) {
 
-        model = glm::mat4(1.f);
-        model = glm::translate(model, position) * glm::mat4_cast(glm::quat(rotation));
+        model = relative_plane;
+        model = glm::translate(model, position + offset) * glm::mat4_cast(glm::quat(rotation));
         model = glm::scale(model, scale);
 
         shader.set_uniform("u_model", model);
         shader.set_uniform("u_view", view);
         shader.set_uniform("u_projection", projection);
+
+        shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 1.f, 1.0f);
 
         GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
 
@@ -70,6 +129,12 @@ public:
 };
 
 std::vector<std::vector<Cube>> bumps;
+
+void update_rel_plane() {
+    relative_plane   = glm::mat4_cast(glm::quat(block_rotation));
+    relative_plane   = glm::translate(relative_plane, glm::vec3(-(block_scale.x - 0.5) / 2, -(block_scale.y - 1.5) / 4, block_scale.z / 2));
+    relative_plane   = glm::scale(relative_plane, glm::vec3(0.5, 0.5, 0.5));
+}
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     view = glm::translate(view, glm::vec3(0, 0, yoffset/2));
@@ -279,59 +344,8 @@ int main(int argc, char* argv[]) {
 
     std::array<char, 1024> text_buf = {0};
 
-    const char shader_src[] = R"glsl(@V#version 330 core
-layout (location = 0) in vec3 a_pos;
-
-uniform mat4 u_view;
-uniform mat4 u_projection;
-uniform mat4 u_model;
-
-void main()
-{
-    gl_Position =  u_projection * u_view * u_model * vec4(a_pos.x, a_pos.y, a_pos.z, 1.0);
-}@F#version 330 core
-out vec4 frag_colour;
-uniform vec4 u_frag_colour = vec4(0.1f, 0.9f, 0.1f, 1.0f);
-void main()
-{
-    frag_colour = u_frag_colour;
-}@)glsl";
-
     GLShader shader(shader_src);
     shader.bind();
-    shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 0.25f, 1.0f);
-
-    float vertices[] = {
-        -0.5, -0.5,  0.5,
-        -0.5,  0.5,  0.5,
-         0.5,  0.5,  0.5,
-         0.5, -0.5,  0.5,
-
-        -0.5, -0.5, -0.5,
-        -0.5,  0.5, -0.5,
-         0.5,  0.5, -0.5,
-         0.5, -0.5, -0.5
-    };
-
-    // Clockwise
-
-    uint32_t indices[] = {
-        0, 1, 2, // Front 
-        2, 3, 0,
-
-        4, 5, 6, // Back
-        6, 7, 4,
-
-        1, 5, 6, // Top
-        6, 2, 1,
-
-        4, 5, 1, // Left
-        1, 0, 4,
-
-        3, 2, 6, // Right
-        6, 7, 3
-
-    };
 
     GLVertexArray vao;
     vao.create();
@@ -363,7 +377,6 @@ void main()
 
     while(!glfwWindowShouldClose(window)) {
 
-
         //block_rotation *= glm::quat(glm::vec3(0,glm::radians(30.f) * delta,0));
 
 
@@ -379,10 +392,6 @@ void main()
         slab_model = glm::translate(slab_model, glm::vec3(0,0,0)) * glm::mat4_cast(glm::quat(block_rotation));
         slab_model = glm::scale(slab_model, block_scale);
 
-        shader.set_uniform("u_model", slab_model);
-        shader.set_uniform("u_view", view);
-        shader.set_uniform("u_projection", projection);
-
 
 
         float current_frame = glfwGetTime();
@@ -397,14 +406,19 @@ void main()
         ImGui::Begin("Braille");
         ImGui::InputText("Text", text_buf.data(), 1024);
         ImGui::InputFloat3("Size", &block_scale[0], 8);
+        ImGui::SliderFloat("Character size", &char_size, 0.75f, 2.f);
+        update_rel_plane();
 
         if(ImGui::Button("Generate")) {
-            for(size_t i = 0; i < text_buf.size(); i++) {
+            bumps.clear();
+            block_scale.x = 0;
+            for(size_t i = 0; i < strlen(text_buf.data()); i++) {
+                block_scale.x += 1;
                 text_buf[i] = std::tolower(text_buf[i]);
                 bumps.emplace_back();
                 for(size_t j = 0; j < char_map[text_buf[i]].size(); j++) {
                     bumps[i].emplace_back();
-                    // bumps[i][j].position = 
+                    bumps[i][j].position = char_map[text_buf[i]][j] * glm::vec3(char_size / 2);
                 }
             }
             println(
@@ -420,6 +434,16 @@ void main()
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+        for(size_t i = 0; i < bumps.size(); i++) {
+            for(auto& b : bumps[i]) {
+                b.draw(shader, ebo, {i * 2, 0, 0});
+            }
+        }
+        shader.set_uniform("u_model", slab_model);
+        shader.set_uniform("u_view", view);
+        shader.set_uniform("u_projection", projection);
+        shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 0.25f, 1.0f);
         GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
