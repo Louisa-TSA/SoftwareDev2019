@@ -360,6 +360,14 @@ int main(int argc, char* argv[]) {
         {1, 0, 0},
         {1, -1, 0}
     };
+    char_map[','] = {
+        {0, 0, 0}
+    };
+    char_map['.'] = {
+        {0, 0, 0},
+        {1, 0, 0},
+        {1, -1, 0}
+    };
 
 
     GLFWwindow* window;
@@ -469,7 +477,7 @@ int main(int argc, char* argv[]) {
 
             update_rel_plane();
 
-            if(ImGui::Button("Generate")) {
+            //if(ImGui::Button("Generate")) {
                 bumps.clear();
                 block_scale.x = 0;
                 for(size_t i = 0; i < strlen(text_buf.data()); i++) {
@@ -481,7 +489,7 @@ int main(int argc, char* argv[]) {
                         bumps[i][j].position = char_map[text_buf[i]][j] * glm::vec3(char_size / 2);
                     }
                 }
-            }
+            //}
 
             ImGui::Spacing();
 
