@@ -88,7 +88,7 @@ int width = 1280, height = 720;
 float delta = 0;
 
 glm::mat4 slab_model = glm::mat4(1.0f);
-glm::mat4 view  = glm::mat4(1.0f);
+glm::mat4 view       = glm::mat4(1.0f);
 glm::mat4 projection;
 
 glm::vec3 block_rotation = glm::vec3(0,0,0);
@@ -430,7 +430,7 @@ int main(int argc, char* argv[]) {
 
 
 
-        projection = glm::perspective(glm::radians(90.0f), (float)width/(float)height, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(65.0f), (float)width/(float)height, 0.1f, 100.0f);
 
 
 
