@@ -3,6 +3,8 @@
 
 #include <cctype>
 
+#include <fstream>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -101,6 +103,32 @@ bool just_clicked = false;
 
 glm::mat4 relative_plane = glm::mat4(1.f);
 
+struct ObjExportData {
+    std::vector<glm::vec3> vertices;
+    std::vector<uint32_t>  indices;
+
+    void append(const ObjExportData& other) {
+        this->vertices.insert(this->vertices.end(), other.vertices.begin(), other.vertices.end());
+        this->indices .insert(this->indices .end(), other.indices .begin(), other.indices .end());
+    }
+
+    void write(const std::array<char, 1024>& file_name) {
+        std::ofstream file;
+        file.open(file_name.data());
+
+        file << "# TSA Braille Generator\n# https://github.com/Louisa-TSA/SoftwareDev2019\n";
+
+        for(auto& v : vertices) {
+            file << "v " << v.x << " " << v.y << " " << v.z << '\n';
+        }
+        for(size_t i = 0; i < indices.size(); i++) {
+            file << "f " << indices[i]+1 << " " << indices[i+1]+1 << " " << indices[i+2]+1 << '\n';
+        }
+
+        file.close();
+    }
+};
+
 class Cube {
 
 public:
@@ -120,10 +148,30 @@ public:
         shader.set_uniform("u_view", view);
         shader.set_uniform("u_projection", projection);
 
-        shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 1.f, 1.0f);
+        shader.set_uniform("u_frag_colour", 0.1f, 0.9f, 0.1f, 1.0f);
 
         GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
 
+    }
+
+    ObjExportData exportobj(size_t index, const glm::vec3& offset) {
+
+        relative_plane = glm::translate(glm::mat4(1.f), glm::vec3(-(block_scale.x - 0.5) / 2, -(block_scale.y - 1.5) / 4, block_scale.z / 2));
+        relative_plane = glm::scale(relative_plane, glm::vec3(0.5, 0.5, 0.5));
+
+        model = relative_plane;
+        model = glm::translate(model, position + offset);
+        model = glm::scale(model, scale);
+
+        ObjExportData data;
+        for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
+            data.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
+            data.vertices.back() = model * glm::vec4(data.vertices.back(), 1.f);
+        }
+        for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
+            data.indices.emplace_back(indices[i] + ((sizeof(indices) / sizeof(uint32_t)) * (index)));
+        }
+        return data;
     }
 
 };
@@ -372,12 +420,10 @@ int main(int argc, char* argv[]) {
     view = glm::translate(view, glm::vec3(0, 0,-3));
 
 
-
+    std::array<char, 1024> file_name = {0};
 
 
     while(!glfwWindowShouldClose(window)) {
-
-        //block_rotation *= glm::quat(glm::vec3(0,glm::radians(30.f) * delta,0));
 
 
         glfwGetFramebufferSize(window, &width, &height);
@@ -388,7 +434,7 @@ int main(int argc, char* argv[]) {
 
 
 
-        slab_model = glm::mat4(1.f);//glm::rotate(model, (float)delta * glm::radians(50.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        slab_model = glm::mat4(1.f);
         slab_model = glm::translate(slab_model, glm::vec3(0,0,0)) * glm::mat4_cast(glm::quat(block_rotation));
         slab_model = glm::scale(slab_model, block_scale);
 
@@ -404,9 +450,12 @@ int main(int argc, char* argv[]) {
 
 
         ImGui::Begin("Braille");
-        ImGui::InputText("Text", text_buf.data(), 1024);
+        ImGui::InputText("Text", text_buf.data(), text_buf.size());
         ImGui::InputFloat3("Size", &block_scale[0], 8);
         ImGui::SliderFloat("Character size", &char_size, 0.75f, 2.f);
+        ImGui::Spacing();
+
+
         update_rel_plane();
 
         if(ImGui::Button("Generate")) {
@@ -429,6 +478,45 @@ int main(int argc, char* argv[]) {
             );
         }
 
+        ImGui::Spacing();
+
+        if(ImGui::Button("Export")) {
+
+            size_t str_len = strlen(file_name.data());
+            if(str_len > 0) {
+                file_name[str_len  ] = '.';
+                file_name[str_len+1] = 'o';
+                file_name[str_len+2] = 'b';
+                file_name[str_len+3] = 'j';
+                file_name[str_len+4] = '\0';
+
+                slab_model = glm::mat4(1.f);
+                slab_model = glm::translate(slab_model, glm::vec3(0,0,0));
+                slab_model = glm::scale(slab_model, block_scale);
+
+                ObjExportData obj;
+                for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
+                    obj.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
+                    obj.vertices.back() = slab_model * glm::vec4(obj.vertices.back(), 1.f);
+                }
+                for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
+                    obj.indices.emplace_back(indices[i]);
+                }
+                size_t total = 1;
+                if(strlen(file_name.data()) > 0) {
+                    for(size_t i = 0; i < bumps.size(); i++) {
+                        for(size_t j = 0; j < bumps[i].size(); j++) {
+                            obj.append(bumps[i][j].exportobj(total++, {i * 2, 0, 0}));
+                        }
+                    }
+                }
+                obj.write(file_name);
+            }
+
+        }
+
+        ImGui::SameLine(); ImGui::InputText("File name", file_name.data(), file_name.size());
+
         ImGui::End();
 
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
@@ -440,10 +528,12 @@ int main(int argc, char* argv[]) {
                 b.draw(shader, ebo, {i * 2, 0, 0});
             }
         }
+
         shader.set_uniform("u_model", slab_model);
         shader.set_uniform("u_view", view);
         shader.set_uniform("u_projection", projection);
         shader.set_uniform("u_frag_colour", 0.25f, 0.25f, 0.25f, 1.0f);
+
         GLCALL(glDrawElements(GL_TRIANGLES, ebo.get_count(), GL_UNSIGNED_INT, 0));
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
