@@ -5,6 +5,9 @@
 
 #include <fstream>
 
+#include <chrono>
+#include <thread>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -86,6 +89,7 @@ float sensitivity = 1.f;
 int width = 1280, height = 720;
 
 float delta = 0;
+float fps_cap = 60;
 
 glm::mat4 slab_model = glm::mat4(1.0f);
 glm::mat4 view       = glm::mat4(1.0f);
@@ -370,12 +374,12 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to create window!" << std::endl;
         return 2;
     }
+    glfwMakeContextCurrent(window);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    glfwMakeContextCurrent(window);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
         std::cerr << "Failed to initialize glad!" << std::endl;
@@ -424,6 +428,8 @@ int main(int argc, char* argv[]) {
 
     std::array<char, 1024> file_name = {0};
 
+    bool first_frame = true;
+
 
     while(!glfwWindowShouldClose(window)) {
 
@@ -443,73 +449,80 @@ int main(int argc, char* argv[]) {
         float current_frame = glfwGetTime();
         delta = current_frame - last_frame;
         last_frame = current_frame;
+        int64_t milliseconds = ((1.f/fps_cap) - delta) * 1000;
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-
-        ImGui::Begin("Braille");
-        ImGui::InputText("Text", text_buf.data(), text_buf.size());
-        ImGui::InputFloat3("Size", &block_scale[0], 8);
-        ImGui::SliderFloat("Character size", &char_size, 0.75f, 2.f);
-        ImGui::Spacing();
-
-
-        update_rel_plane();
-
-        if(ImGui::Button("Generate")) {
-            bumps.clear();
-            block_scale.x = 0;
-            for(size_t i = 0; i < strlen(text_buf.data()); i++) {
-                block_scale.x += 1;
-                text_buf[i] = std::tolower(text_buf[i]);
-                bumps.emplace_back();
-                for(size_t j = 0; j < char_map[text_buf[i]].size(); j++) {
-                    bumps[i].emplace_back();
-                    bumps[i][j].position = char_map[text_buf[i]][j] * glm::vec3(char_size / 2);
-                }
-            }
+        if(first_frame) {
+            ImGui::SetNextWindowSize(ImVec2(width / 3, height / 3));
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
         }
 
-        ImGui::Spacing();
+        if(ImGui::Begin("Braille")) {
+            ImGui::InputText("Text", text_buf.data(), text_buf.size());
+            ImGui::InputFloat3("Size", &block_scale[0], 8);
+            ImGui::SliderFloat("Character size", &char_size, 0.75f, 2.f);
+            ImGui::Spacing();
 
-        if(ImGui::Button("Export")) {
 
-            size_t str_len = strlen(file_name.data());
-            if(str_len < 1) {
-                memcpy(file_name.data(), text_buf.data(), file_name.size());
-            }
-            str_len = strlen(file_name.data());
-            file_name[str_len  ] = '.';
-            file_name[str_len+1] = 'o';
-            file_name[str_len+2] = 'b';
-            file_name[str_len+3] = 'j';
-            file_name[str_len+4] = '\0';
+            update_rel_plane();
 
-            slab_model = glm::mat4(1.f);
-            slab_model = glm::translate(slab_model, glm::vec3(0,0,0));
-            slab_model = glm::scale(slab_model, block_scale);
-
-            ObjExportData obj;
-            for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
-                obj.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
-                obj.vertices.back() = slab_model * glm::vec4(obj.vertices.back(), 1.f);
-            }
-            for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
-                obj.indices.emplace_back(indices[i]);
-            }
-            size_t total = 1;
-            for(size_t i = 0; i < bumps.size(); i++) {
-                for(size_t j = 0; j < bumps[i].size(); j++) {
-                    obj.append(bumps[i][j].exportobj(total++, {i * 2, 0, 0}));
+            if(ImGui::Button("Generate")) {
+                bumps.clear();
+                block_scale.x = 0;
+                for(size_t i = 0; i < strlen(text_buf.data()); i++) {
+                    block_scale.x += 1;
+                    text_buf[i] = std::tolower(text_buf[i]);
+                    bumps.emplace_back();
+                    for(size_t j = 0; j < char_map[text_buf[i]].size(); j++) {
+                        bumps[i].emplace_back();
+                        bumps[i][j].position = char_map[text_buf[i]][j] * glm::vec3(char_size / 2);
+                    }
                 }
             }
-            obj.write(file_name);
+
+            ImGui::Spacing();
+
+            if(ImGui::Button("Export")) {
+
+                size_t str_len = strlen(file_name.data());
+                if(str_len < 1) {
+                    memcpy(file_name.data(), text_buf.data(), file_name.size());
+                }
+                str_len = strlen(file_name.data());
+                file_name[str_len  ] = '.';
+                file_name[str_len+1] = 'o';
+                file_name[str_len+2] = 'b';
+                file_name[str_len+3] = 'j';
+                file_name[str_len+4] = '\0';
+
+                slab_model = glm::mat4(1.f);
+                slab_model = glm::translate(slab_model, glm::vec3(0,0,0));
+                slab_model = glm::scale(slab_model, block_scale);
+
+                ObjExportData obj;
+                for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
+                    obj.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
+                    obj.vertices.back() = slab_model * glm::vec4(obj.vertices.back(), 1.f);
+                }
+                for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
+                    obj.indices.emplace_back(indices[i]);
+                }
+                size_t total = 1;
+                for(size_t i = 0; i < bumps.size(); i++) {
+                    for(size_t j = 0; j < bumps[i].size(); j++) {
+                        obj.append(bumps[i][j].exportobj(total++, {i * 2, 0, 0}));
+                    }
+                }
+                obj.write(file_name);
+
+            }
+
+            ImGui::SameLine(); ImGui::InputText("File name", file_name.data(), file_name.size());
 
         }
-
-        ImGui::SameLine(); ImGui::InputText("File name", file_name.data(), file_name.size());
 
         ImGui::End();
 
@@ -534,6 +547,10 @@ int main(int argc, char* argv[]) {
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+
+        first_frame = false;
     }
 
     vao.destroy();
