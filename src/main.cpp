@@ -89,7 +89,7 @@ float delta = 0;
 
 glm::mat4 slab_model = glm::mat4(1.0f);
 glm::mat4 view       = glm::mat4(1.0f);
-glm::mat4 projection;
+glm::mat4 projection = glm::mat4(1.0f);
 
 glm::vec3 block_rotation = glm::vec3(0,0,0);
 glm::vec3 block_scale    = glm::vec3(1, 1.5, 0.25);
@@ -364,6 +364,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+
     window = glfwCreateWindow(width, height, "TSA Braille Generator", nullptr, nullptr);
     if(!window) {
         std::cerr << "Failed to create window!" << std::endl;
@@ -372,12 +373,13 @@ int main(int argc, char* argv[]) {
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     glfwMakeContextCurrent(window);
 
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
         std::cerr << "Failed to initialize glad!" << std::endl;
-        return false;
+        return 3;
     }
 
     ImGui::CreateContext();
@@ -426,11 +428,9 @@ int main(int argc, char* argv[]) {
     while(!glfwWindowShouldClose(window)) {
 
 
+        glViewport(0, 0, width, height);
         glfwGetFramebufferSize(window, &width, &height);
-
-
-
-        projection = glm::perspective(glm::radians(65.0f), (float)width/(float)height, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(65.0f), static_cast<float>(static_cast<float>(width)/static_cast<float>(height)), 0.1f, 100.0f);
 
 
 
