@@ -121,7 +121,7 @@ struct ObjExportData {
         for(auto& v : vertices) {
             file << "v " << v.x << " " << v.y << " " << v.z << '\n';
         }
-        for(size_t i = 0; i < indices.size(); i++) {
+        for(size_t i = 0; i < indices.size(); i += 3) {
             file << "f " << indices[i]+1 << " " << indices[i+1]+1 << " " << indices[i+2]+1 << '\n';
         }
 
@@ -169,7 +169,7 @@ public:
             data.vertices.back() = model * glm::vec4(data.vertices.back(), 1.f);
         }
         for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
-            data.indices.emplace_back(indices[i] + ((sizeof(indices) / sizeof(uint32_t)) * (index)));
+            data.indices.emplace_back(indices[i] + ((sizeof(vertices) / sizeof(float)) / 3 * (index)));
         }
         return data;
     }
@@ -470,12 +470,6 @@ int main(int argc, char* argv[]) {
                     bumps[i][j].position = char_map[text_buf[i]][j] * glm::vec3(char_size / 2);
                 }
             }
-            println(
-                "Generating: ", text_buf.data(),
-                ", x: ", block_scale[0],
-                ", y: ", block_scale[1],
-                ", z: ", block_scale[2]
-            );
         }
 
         ImGui::Spacing();
@@ -483,35 +477,35 @@ int main(int argc, char* argv[]) {
         if(ImGui::Button("Export")) {
 
             size_t str_len = strlen(file_name.data());
-            if(str_len > 0) {
-                file_name[str_len  ] = '.';
-                file_name[str_len+1] = 'o';
-                file_name[str_len+2] = 'b';
-                file_name[str_len+3] = 'j';
-                file_name[str_len+4] = '\0';
-
-                slab_model = glm::mat4(1.f);
-                slab_model = glm::translate(slab_model, glm::vec3(0,0,0));
-                slab_model = glm::scale(slab_model, block_scale);
-
-                ObjExportData obj;
-                for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
-                    obj.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
-                    obj.vertices.back() = slab_model * glm::vec4(obj.vertices.back(), 1.f);
-                }
-                for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
-                    obj.indices.emplace_back(indices[i]);
-                }
-                size_t total = 1;
-                if(strlen(file_name.data()) > 0) {
-                    for(size_t i = 0; i < bumps.size(); i++) {
-                        for(size_t j = 0; j < bumps[i].size(); j++) {
-                            obj.append(bumps[i][j].exportobj(total++, {i * 2, 0, 0}));
-                        }
-                    }
-                }
-                obj.write(file_name);
+            if(str_len < 1) {
+                memcpy(file_name.data(), text_buf.data(), file_name.size());
             }
+            str_len = strlen(file_name.data());
+            file_name[str_len  ] = '.';
+            file_name[str_len+1] = 'o';
+            file_name[str_len+2] = 'b';
+            file_name[str_len+3] = 'j';
+            file_name[str_len+4] = '\0';
+
+            slab_model = glm::mat4(1.f);
+            slab_model = glm::translate(slab_model, glm::vec3(0,0,0));
+            slab_model = glm::scale(slab_model, block_scale);
+
+            ObjExportData obj;
+            for(size_t i = 0; i < sizeof(vertices) / sizeof(float); i += 3) {
+                obj.vertices.emplace_back(vertices[i], vertices[i + 1], vertices[i + 2]);
+                obj.vertices.back() = slab_model * glm::vec4(obj.vertices.back(), 1.f);
+            }
+            for(size_t i = 0; i < sizeof(indices) / sizeof(uint32_t); i++) {
+                obj.indices.emplace_back(indices[i]);
+            }
+            size_t total = 1;
+            for(size_t i = 0; i < bumps.size(); i++) {
+                for(size_t j = 0; j < bumps[i].size(); j++) {
+                    obj.append(bumps[i][j].exportobj(total++, {i * 2, 0, 0}));
+                }
+            }
+            obj.write(file_name);
 
         }
 
